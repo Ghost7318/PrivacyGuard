@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>プライバシーガード＆ウォーターマーク Studio</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts (Inter & Noto Sans JP) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        peach: {
+                            400: '#ff8a9e',
+                            500: '#ff6b8b',
+                            600: '#e04e70',
+                        },
+                        dark: {
+                            900: '#121318',
+                            800: '#1a1c23',
+                            700: '#262933',
+                            600: '#323745'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans JP', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* カスタムスクロールバー */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a1c23;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #323745;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ff6b8b;
+        }
+
+        /* 編集キャンバスの背景チェッカーパターン */
+        .checker-bg {
+            background-color: #1a1c23;
+            background-image: 
+                linear-gradient(45deg, #262933 25%, transparent 25%), 
+                linear-gradient(-45deg, #262933 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #262933 75%),
+                linear-gradient(-45deg, transparent 75%, #262933 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+    </style>
+</head>
+<body class="bg-dark-900 text-gray-100 font-sans min-h-screen flex flex-col antialiased selection:bg-peach-500 selection:text-white">
+
+    <!-- Header -->
+    <header class="border-b border-dark-700 bg-dark-800/80 backdrop-blur sticky top-0 z-40 px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-peach-600 to-peach-400 flex items-center justify-center text-white shadow-lg shadow-peach-500/20">
+                <i data-lucide="shield-check" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight tracking-wide bg-gradient-to-r from-white via-gray-200 to-peach-400 bg-clip-text text-transparent">
+                    PrivacyGuard <span class="text-xs font-normal text-peach-400 border border-peach-500/30 px-1.5 py-0.5 rounded ml-1">Watermark Pro</span>
+                </h1>
+                <p class="text-xs text-gray-400">SNS投稿前の個人情報保護・モザイク＆ウォーターマーク合成ツール</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2" id="actionHeaderControls" style="display: none;">
+            <button id="btnUndo" class="p-2 bg-dark-700 hover:bg-dark-600 text-gray-300 hover:text-white rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="元に戻す (Ctrl+Z)">
+                <i data-lucide="undo-2" class="w-4 h-4"></i>
+            </button>
+            <button id="btnRedo" class="p-2 bg-dark-700 hover:bg-dark-600 text-gray-300 hover:text-white rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="やり直す (Ctrl+Y)">
+                <i data-lucide="redo-2" class="w-4 h-4"></i>
+            </button>
+            <div class="h-5 w-px bg-dark-700 mx-1"></div>
+            <button id="btnReset" class="flex items-center gap-1.5 px-3 py-1.5 bg-dark-700 hover:bg-red-500/20 text-gray-300 hover:text-red-400 rounded-lg text-xs font-medium transition-colors border border-transparent hover:border-red-500/30">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                リセット
+            </button>
+            <button id="btnDownload" class="flex items-center gap-2 px-4 py-1.5 bg-peach-500 hover:bg-peach-600 text-white font-medium rounded-lg text-sm shadow-md shadow-peach-500/25 transition-all transform hover:-translate-y-0.5">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                画像を保存
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+
+        <!-- Dropzone (Shown when no image is loaded) -->
+        <div id="dropzone" class="flex-1 flex flex-col items-center justify-center p-6 text-center cursor-pointer border-2 border-dashed border-dark-600 hover:border-peach-500/60 bg-dark-800/40 hover:bg-dark-800/80 transition-all m-4 rounded-2xl group">
+            <input type="file" id="fileInput" accept="image/*" class="hidden">
+            <div class="w-20 h-20 rounded-full bg-dark-700 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-peach-500/10 transition-all duration-300">
+                <i data-lucide="image-plus" class="w-10 h-10 text-gray-400 group-hover:text-peach-400 transition-colors"></i>
+            </div>
+            <h2 class="text-xl font-bold text-gray-200 mb-2">画像をアップロードまたはドロップ</h2>
+            <p class="text-sm text-gray-400 max-w-md mb-6">
+                JPG, PNG, WebP に対応。取り込んだ時点で位置情報(EXIF)などのメタデータは自動除去されます。
+            </p>
+            <div class="flex items-center gap-4 text-xs text-gray-500 border-t border-dark-700 pt-4">
+                <span class="flex items-center gap-1"><i data-lucide="shield" class="w-3.5 h-3.5 text-peach-400"></i> ブラウザ内ローカル処理（サーバー非送信）</span>
+                <span class="flex items-center gap-1"><i data-lucide="sparkles" class="w-3.5 h-3.5 text-peach-400"></i> 位置情報完全消去</span>
+            </div>
+        </div>
+
+        <!-- Editor Area (Shown after image loaded) -->
+        <div id="editorArea" class="flex-1 flex flex-col md:flex-row w-full overflow-hidden hidden">
+
+            <!-- Center Canvas Viewport -->
+            <div class="flex-1 checker-bg relative flex items-center justify-center p-4 overflow-auto select-none min-h-[350px]">
+                <div id="canvasWrapper" class="relative shadow-2xl rounded-lg overflow-hidden flex items-center justify-center">
+                    <canvas id="mainCanvas" class="block max-w-full max-h-[75vh] object-contain cursor-crosshair"></canvas>
+                    <!-- Drag Selection Overlay Box -->
+                    <div id="selectionBox" class="absolute border-2 border-dashed border-peach-400 bg-peach-500/20 pointer-events-none hidden rounded-sm"></div>
+                </div>
+
+                <!-- Guidance Info Tag -->
+                <div class="absolute bottom-4 left-4 bg-dark-800/90 backdrop-blur border border-dark-700 text-xs px-3 py-1.5 rounded-full text-gray-400 pointer-events-none flex items-center gap-2 shadow-lg">
+                    <i data-lucide="mouse-pointer" class="w-3.5 h-3.5 text-peach-400"></i>
+                    <span>ドラッグで保護領域を選択</span>
+                </div>
+            </div>
+
+            <!-- Right Control Sidebar -->
+            <aside class="w-full md:w-80 border-t md:border-t-0 md:border-l border-dark-700 bg-dark-800 flex flex-col h-full overflow-y-auto">
+                
+                <!-- Tool Selector Tabs -->
+                <div class="flex border-b border-dark-700 bg-dark-900/50 p-1 gap-1">
+                    <button id="tabPrivacy" class="flex-1 py-2 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all bg-peach-500 text-white shadow-sm">
+                        <i data-lucide="eye-off" class="w-4 h-4"></i>
+                        情報保護
+                    </button>
+                    <button id="tabWatermark" class="flex-1 py-2 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all text-gray-400 hover:text-white hover:bg-dark-700">
+                        <i data-lucide="type" class="w-4 h-4"></i>
+                        透かし (WM)
+                    </button>
+                </div>
+
+                <!-- Panel 1: Privacy Protection (Mosaic/Blur/Fill) -->
+                <div id="privacyPanel" class="p-4 space-y-5 flex-1">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">処理タイプ</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button data-effect="mosaic" class="effect-btn active p-3 rounded-xl border border-peach-500 bg-peach-500/10 text-peach-400 flex flex-col items-center gap-1.5 text-xs transition-all">
+                                <i data-lucide="grid" class="w-5 h-5"></i>
+                                モザイク
+                            </button>
+                            <button data-effect="blur" class="effect-btn p-3 rounded-xl border border-dark-700 bg-dark-700/50 text-gray-400 hover:bg-dark-700 hover:text-gray-200 flex flex-col items-center gap-1.5 text-xs transition-all">
+                                <i data-lucide="droplet" class="w-5 h-5"></i>
+                                ぼかし
+                            </button>
+                            <button data-effect="fill" class="effect-btn p-3 rounded-xl border border-dark-700 bg-dark-700/50 text-gray-400 hover:bg-dark-700 hover:text-gray-200 flex flex-col items-center gap-1.5 text-xs transition-all">
+                                <i data-lucide="square" class="w-5 h-5"></i>
+                                塗りつぶし
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Mosaic Intensity -->
+                    <div id="mosaicControls" class="space-y-2">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-gray-300 font-medium">モザイクサイズ</span>
+                            <span id="mosaicVal" class="text-peach-400 font-mono">15px</span>
+                        </div>
+                        <input type="range" id="mosaicSize" min="5" max="50" value="15" class="w-full accent-peach-500 bg-dark-700 h-1.5 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <!-- Blur Intensity -->
+                    <div id="blurControls" class="space-y-2 hidden">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-gray-300 font-medium">ぼかし強度</span>
+                            <span id="blurVal" class="text-peach-400 font-mono">12px</span>
+                        </div>
+                        <input type="range" id="blurRadius" min="3" max="40" value="12" class="w-full accent-peach-500 bg-dark-700 h-1.5 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <!-- Fill Color Picker -->
+                    <div id="fillControls" class="space-y-2 hidden">
+                        <label class="block text-xs font-medium text-gray-300">塗りつぶしカラー</label>
+                        <div class="flex items-center gap-2">
+                            <button data-color="#000000" class="fill-color-btn w-8 h-8 rounded-lg bg-black border-2 border-peach-500 ring-2 ring-peach-500/30"></button>
+                            <button data-color="#ffffff" class="fill-color-btn w-8 h-8 rounded-lg bg-white border-2 border-transparent hover:border-gray-400"></button>
+                            <button data-color="#ff6b8b" class="fill-color-btn w-8 h-8 rounded-lg bg-peach-500 border-2 border-transparent hover:border-gray-400"></button>
+                            <input type="color" id="fillCustomColor" value="#000000" class="w-8 h-8 bg-transparent border-0 cursor-pointer rounded overflow-hidden">
+                        </div>
+                    </div>
+
+                    <!-- Metadata Removal Status -->
+                    <div class="p-3 bg-dark-900/60 rounded-xl border border-dark-700/80 flex items-start gap-2.5">
+                        <i data-lucide="shield-alert" class="w-4 h-4 text-peach-400 mt-0.5 shrink-0"></i>
+                        <div class="text-xs text-gray-400 leading-relaxed">
+                            <span class="font-medium text-gray-200 block mb-0.5">EXIF除去が有効</span>
+                            加工画像の読み出し時、撮影日・位置(GPS)・機種情報などのメタデータは自動的に物理破棄されます。
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel 2: Watermark Studio -->
+                <div id="watermarkPanel" class="p-4 space-y-4 flex-1 hidden">
+                    
+                    <!-- Watermark Enable Switch -->
+                    <div class="flex items-center justify-between pb-3 border-b border-dark-700">
+                        <span class="text-xs font-semibold text-gray-300 uppercase tracking-wider">ウォーターマーク有効化</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="wmEnable" class="sr-only peer" checked>
+                            <div class="w-9 h-5 bg-dark-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-peach-500"></div>
+                        </label>
+                    </div>
+
+                    <div id="wmControlsGroup" class="space-y-4">
+                        <!-- Text Input -->
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-medium text-gray-300">透かしテキスト</label>
+                            <input type="text" id="wmText" value="SAMPLE / DO NOT COPY" class="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-peach-500 transition-colors">
+                        </div>
+
+                        <!-- Position Mode -->
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-medium text-gray-300">配置スタイル</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="wmPosRepeat" data-pos="repeat" class="wm-pos-btn active py-2 px-3 bg-peach-500/10 border border-peach-500 text-peach-400 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5">
+                                    <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
+                                    斜め繰り返し
+                                </button>
+                                <button id="wmPosBottomRight" data-pos="bottom-right" class="wm-pos-btn py-2 px-3 bg-dark-700/50 border border-dark-700 text-gray-400 hover:text-gray-200 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5">
+                                    <i data-lucide="arrow-down-right" class="w-3.5 h-3.5"></i>
+                                    右下単体
+                                </button>
+                                <button id="wmPosCenter" data-pos="center" class="wm-pos-btn py-2 px-3 bg-dark-700/50 border border-dark-700 text-gray-400 hover:text-gray-200 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5">
+                                    <i data-lucide="align-center" class="w-3.5 h-3.5"></i>
+                                    中央単体
+                                </button>
+                                <button id="wmPosTopLeft" data-pos="top-left" class="wm-pos-btn py-2 px-3 bg-dark-700/50 border border-dark-700 text-gray-400 hover:text-gray-200 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5">
+                                    <i data-lucide="arrow-up-left" class="w-3.5 h-3.5"></i>
+                                    左上単体
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Opacity Slider -->
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-gray-300 font-medium">透明度 (不透明度)</span>
+                                <span id="wmOpacityVal" class="text-peach-400 font-mono">30%</span>
+                            </div>
+                            <input type="range" id="wmOpacity" min="5" max="90" value="30" class="w-full accent-peach-500 bg-dark-700 h-1.5 rounded-lg appearance-none cursor-pointer">
+                        </div>
+
+                        <!-- Size Slider -->
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-gray-300 font-medium">フォントサイズ</span>
+                                <span id="wmSizeVal" class="text-peach-400 font-mono">24px</span>
+                            </div>
+                            <input type="range" id="wmSize" min="12" max="72" value="24" class="w-full accent-peach-500 bg-dark-700 h-1.5 rounded-lg appearance-none cursor-pointer">
+                        </div>
+
+                        <!-- Rotation Angle Slider -->
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-gray-300 font-medium">回転角度</span>
+                                <span id="wmAngleVal" class="text-peach-400 font-mono">-30°</span>
+                            </div>
+                            <input type="range" id="wmAngle" min="-90" max="90" value="-30" class="w-full accent-peach-500 bg-dark-700 h-1.5 rounded-lg appearance-none cursor-pointer">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer File Change Button -->
+                <div class="p-4 border-t border-dark-700 bg-dark-900/40 mt-auto">
+                    <button id="btnChangeImage" class="w-full py-2 px-3 bg-dark-700 hover:bg-dark-600 text-gray-300 hover:text-white rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2">
+                        <i data-lucide="image" class="w-4 h-4"></i>
+                        別の画像を選択
+                    </button>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <!-- Modal: Export Options -->
+    <div id="exportModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-dark-800 border border-dark-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div class="flex justify-between items-center border-b border-dark-700 pb-3">
+                <h3 class="font-bold text-gray-100 flex items-center gap-2">
+                    <i data-lucide="download" class="w-4 h-4 text-peach-400"></i>
+                    画像の保存設定
+                </h3>
+                <button id="btnCloseModal" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-2">ファイル形式</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="flex items-center gap-2 p-3 bg-dark-900 border border-peach-500/50 rounded-xl cursor-pointer hover:bg-dark-700 transition-colors">
+                            <input type="radio" name="exportFormat" value="png" checked class="accent-peach-500">
+                            <div>
+                                <div class="text-xs font-bold text-white">PNG</div>
+                                <div class="text-[10px] text-gray-400">高画質・無劣化</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 bg-dark-900 border border-dark-700 rounded-xl cursor-pointer hover:bg-dark-700 transition-colors">
+                            <input type="radio" name="exportFormat" value="jpeg" class="accent-peach-500">
+                            <div>
+                                <div class="text-xs font-bold text-white">JPEG</div>
+                                <div class="text-[10px] text-gray-400">軽量ファイル</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-medium text-gray-400">ファイル名</label>
+                    <input type="text" id="exportFilename" value="protected_image" class="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-peach-500">
+                </div>
+            </div>
+
+            <div class="flex gap-2 pt-2">
+                <button id="btnConfirmExport" class="flex-1 py-2.5 bg-peach-500 hover:bg-peach-600 text-white font-medium rounded-xl text-xs shadow-lg shadow-peach-500/20 transition-all">
+                    ダウンロード
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Lucideアイコン初期化
+        lucide.createIcons();
+
+        // 状態管理
+        const state = {
+            image: null,
+            originalImage: null,
+            history: [],
+            historyIndex: -1,
+            activeEffect: 'mosaic', // 'mosaic', 'blur', 'fill'
+            mosaicSize: 15,
+            blurRadius: 12,
+            fillColor: '#000000',
+            watermark: {
+                enabled: true,
+                text: 'SAMPLE / DO NOT COPY',
+                opacity: 0.3,
+                size: 24,
+                angle: -30,
+                position: 'repeat' // 'repeat', 'bottom-right', 'center', 'top-left'
+            },
+            isSelecting: false,
+            selectionStart: { x: 0, y: 0 },
+            selectionEnd: { x: 0, y: 0 }
+        };
+
+        // DOM要素
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const editorArea = document.getElementById('editorArea');
+        const mainCanvas = document.getElementById('mainCanvas');
+        const ctx = mainCanvas.getContext('2d');
+        const canvasWrapper = document.getElementById('canvasWrapper');
+        const selectionBox = document.getElementById('selectionBox');
+        const actionHeaderControls = document.getElementById('actionHeaderControls');
+
+        // タブ切り替え
+        const tabPrivacy = document.getElementById('tabPrivacy');
+        const tabWatermark = document.getElementById('tabWatermark');
+        const privacyPanel = document.getElementById('privacyPanel');
+        const watermarkPanel = document.getElementById('watermarkPanel');
+
+        // コントロール
+        const mosaicSizeInput = document.getElementById('mosaicSize');
+        const blurRadiusInput = document.getElementById('blurRadius');
+        const fillColorBtns = document.querySelectorAll('.fill-color-btn');
+        const fillCustomColor = document.getElementById('fillCustomColor');
+
+        const wmEnable = document.getElementById('wmEnable');
+        const wmTextInput = document.getElementById('wmText');
+        const wmOpacityInput = document.getElementById('wmOpacity');
+        const wmSizeInput = document.getElementById('wmSize');
+        const wmAngleInput = document.getElementById('wmAngle');
+
+        // --- 画像ロード処理 ---
+        dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('border-peach-500'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-peach-500'));
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-peach-500');
+            if (e.dataTransfer.files.length) loadImage(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) loadImage(e.target.files[0]);
+        });
+        document.getElementById('btnChangeImage').addEventListener('click', () => fileInput.click());
+
+        function loadImage(file) {
+            if (!file.type.startsWith('image/')) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    // キャンバスサイズのセット（元の解像度を保持）
+                    mainCanvas.width = img.width;
+                    mainCanvas.height = img.height;
+
+                    // 元画像の保持
+                    state.originalImage = img;
+                    state.image = img;
+
+                    // 状態履歴の初期化
+                    saveState(img);
+
+                    // UIの切り替え
+                    dropzone.classList.add('hidden');
+                    editorArea.classList.remove('hidden');
+                    actionHeaderControls.style.display = 'flex';
+
+                    renderCanvas();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- 履歴（Undo / Redo）管理 ---
+        function saveState(imageSource) {
+            // 現在地より未来の履歴を切り捨てる
+            state.history = state.history.slice(0, state.historyIndex + 1);
+            
+            // キャンバス内容のImageDataを保持
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = imageSource.width;
+            tempCanvas.height = imageSource.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(imageSource, 0, 0);
+
+            state.history.push(tempCanvas.toDataURL());
+            state.historyIndex = state.history.length - 1;
+            updateUndoRedoButtons();
+        }
+
+        function updateUndoRedoButtons() {
+            document.getElementById('btnUndo').disabled = state.historyIndex <= 0;
+            document.getElementById('btnRedo').disabled = state.historyIndex >= state.history.length - 1;
+        }
+
+        document.getElementById('btnUndo').addEventListener('click', undo);
+        document.getElementById('btnRedo').addEventListener('click', redo);
+
+        function undo() {
+            if (state.historyIndex > 0) {
+                state.historyIndex--;
+                loadStateFromHistory();
+            }
+        }
+
+        function redo() {
+            if (state.historyIndex < state.history.length - 1) {
+                state.historyIndex++;
+                loadStateFromHistory();
+            }
+        }
+
+        function loadStateFromHistory() {
+            const img = new Image();
+            img.onload = () => {
+                state.image = img;
+                renderCanvas();
+                updateUndoRedoButtons();
+            };
+            img.src = state.history[state.historyIndex];
+        }
+
+        document.getElementById('btnReset').addEventListener('click', () => {
+            if (state.originalImage && confirm('すべての編集を取り消して初期画像に戻しますか？')) {
+                state.image = state.originalImage;
+                saveState(state.originalImage);
+                renderCanvas();
+            }
+        });
+
+        // --- 描画レンダリングエンジン ---
+        function renderCanvas() {
+            if (!state.image) return;
+
+            // 1. 基本画像の描画 (編集履歴の状態)
+            ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+            ctx.drawImage(state.image, 0, 0);
+
+            // 2. ウォーターマークの重ね描画
+            if (state.watermark.enabled && state.watermark.text.trim() !== '') {
+                drawWatermark(ctx, mainCanvas.width, mainCanvas.height);
+            }
+        }
+
+        function drawWatermark(targetCtx, width, height) {
+            targetCtx.save();
+            targetCtx.fillStyle = `rgba(255, 255, 255, ${state.watermark.opacity})`;
+            targetCtx.font = `bold ${state.watermark.size}px Inter, sans-serif`;
+            targetCtx.textBaseline = 'middle';
+            targetCtx.textAlign = 'center';
+
+            const text = state.watermark.text;
+            const rad = (state.watermark.angle * Math.PI) / 180;
+
+            if (state.watermark.position === 'repeat') {
+                // テキストの幅を計測して被らない間隔を動的に計算
+                const metrics = targetCtx.measureText(text);
+                const textWidth = metrics.width;
+                const textHeight = state.watermark.size;
+
+                // テキスト長に応じたパディング（マージン）
+                const paddingX = Math.max(40, textWidth * 0.4);
+                const paddingY = Math.max(40, textHeight * 1.8);
+
+                const stepX = textWidth + paddingX;
+                const stepY = textHeight + paddingY;
+
+                targetCtx.rotate(rad);
+                const diagonal = Math.sqrt(width * width + height * height);
+
+                // 対角線エリア全体をカバーするグリッド描画
+                let rowIndex = 0;
+                for (let y = -diagonal; y < diagonal * 2; y += stepY) {
+                    // 1行おきに少しずらして見やすく配置（千鳥配置）
+                    const shiftX = (rowIndex % 2 === 0) ? 0 : stepX / 2;
+                    for (let x = -diagonal; x < diagonal * 2; x += stepX) {
+                        targetCtx.fillText(text, x + shiftX, y);
+                    }
+                    rowIndex++;
+                }
+            } else if (state.watermark.position === 'center') {
+                targetCtx.translate(width / 2, height / 2);
+                targetCtx.rotate(rad);
+                targetCtx.fillText(text, 0, 0);
+            } else if (state.watermark.position === 'bottom-right') {
+                targetCtx.translate(width - (state.watermark.size * 4), height - (state.watermark.size * 2));
+                targetCtx.rotate(rad);
+                targetCtx.fillText(text, 0, 0);
+            } else if (state.watermark.position === 'top-left') {
+                targetCtx.translate(state.watermark.size * 4, state.watermark.size * 2);
+                targetCtx.rotate(rad);
+                targetCtx.fillText(text, 0, 0);
+            }
+
+            targetCtx.restore();
+        }
+
+        // --- キャンバス上のドラッグ領域指定＆プライバシー加工 ---
+        mainCanvas.addEventListener('mousedown', startSelection);
+        window.addEventListener('mousemove', updateSelection);
+        window.addEventListener('mouseup', endSelection);
+
+        // タッチ操作のサポート
+        mainCanvas.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            startSelection({ clientX: touch.clientX, clientY: touch.clientY, preventDefault: () => {} });
+        });
+        window.addEventListener('touchmove', (e) => {
+            if (!state.isSelecting) return;
+            const touch = e.touches[0];
+            updateSelection({ clientX: touch.clientX, clientY: touch.clientY });
+        });
+        window.addEventListener('touchend', endSelection);
+
+        function getCanvasCoordinates(e) {
+            const rect = mainCanvas.getBoundingClientRect();
+            const scaleX = mainCanvas.width / rect.width;
+            const scaleY = mainCanvas.height / rect.height;
+
+            return {
+                x: (e.clientX - rect.left) * scaleX,
+                y: (e.clientY - rect.top) * scaleY,
+                screenX: e.clientX - rect.left,
+                screenY: e.clientY - rect.top
+            };
+        }
+
+        function startSelection(e) {
+            if (!state.image) return;
+            const coords = getCanvasCoordinates(e);
+            state.isSelecting = true;
+            state.selectionStart = coords;
+            state.selectionEnd = coords;
+
+            selectionBox.style.left = `${coords.screenX}px`;
+            selectionBox.style.top = `${coords.screenY}px`;
+            selectionBox.style.width = `0px`;
+            selectionBox.style.height = `0px`;
+            selectionBox.classList.remove('hidden');
+        }
+
+        function updateSelection(e) {
+            if (!state.isSelecting) return;
+            const coords = getCanvasCoordinates(e);
+            state.selectionEnd = coords;
+
+            const x = Math.min(state.selectionStart.screenX, state.selectionEnd.screenX);
+            const y = Math.min(state.selectionStart.screenY, state.selectionEnd.screenY);
+            const w = Math.abs(state.selectionEnd.screenX - state.selectionStart.screenX);
+            const h = Math.abs(state.selectionEnd.screenY - state.selectionStart.screenY);
+
+            selectionBox.style.left = `${x}px`;
+            selectionBox.style.top = `${y}px`;
+            selectionBox.style.width = `${w}px`;
+            selectionBox.style.height = `${h}px`;
+        }
+
+        function endSelection() {
+            if (!state.isSelecting) return;
+            state.isSelecting = false;
+            selectionBox.classList.add('hidden');
+
+            const x = Math.min(state.selectionStart.x, state.selectionEnd.x);
+            const y = Math.min(state.selectionStart.y, state.selectionEnd.y);
+            const width = Math.abs(state.selectionEnd.x - state.selectionStart.x);
+            const height = Math.abs(state.selectionEnd.y - state.selectionStart.y);
+
+            // クリックの誤動作防止（最小サイズ制限）
+            if (width > 5 && height > 5) {
+                applyPrivacyEffect(x, y, width, height);
+            }
+        }
+
+        function applyPrivacyEffect(x, y, width, height) {
+            // 一時Canvasで加工後の基底画像を作成
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = mainCanvas.width;
+            tempCanvas.height = mainCanvas.height;
+            const tCtx = tempCanvas.getContext('2d');
+            
+            // 現在の画像（ウォーターマーク無し）を描画
+            tCtx.drawImage(state.image, 0, 0);
+
+            if (state.activeEffect === 'mosaic') {
+                // モザイク処理
+                const size = state.mosaicSize;
+                const scaledW = Math.max(1, Math.ceil(width / size));
+                const scaledH = Math.max(1, Math.ceil(height / size));
+
+                const offscreen = document.createElement('canvas');
+                offscreen.width = scaledW;
+                offscreen.height = scaledH;
+                const offCtx = offscreen.getContext('2d');
+
+                offCtx.drawImage(tempCanvas, x, y, width, height, 0, 0, scaledW, scaledH);
+                tCtx.imageSmoothingEnabled = false;
+                tCtx.drawImage(offscreen, 0, 0, scaledW, scaledH, x, y, width, height);
+            } else if (state.activeEffect === 'blur') {
+                // ブラー処理
+                const offscreen = document.createElement('canvas');
+                offscreen.width = width;
+                offscreen.height = height;
+                const offCtx = offscreen.getContext('2d');
+
+                offCtx.filter = `blur(${state.blurRadius}px)`;
+                offCtx.drawImage(tempCanvas, x, y, width, height, 0, 0, width, height);
+                tCtx.drawImage(offscreen, x, y);
+            } else if (state.activeEffect === 'fill') {
+                // 塗りつぶし
+                tCtx.fillStyle = state.fillColor;
+                tCtx.fillRect(x, y, width, height);
+            }
+
+            // 加工結果を新しい画像ソースとして登録
+            const updatedImg = new Image();
+            updatedImg.onload = () => {
+                state.image = updatedImg;
+                saveState(updatedImg);
+                renderCanvas();
+            };
+            updatedImg.src = tempCanvas.toDataURL();
+        }
+
+        // --- UIインタラクション（タブ・コントロール） ---
+        tabPrivacy.addEventListener('click', () => {
+            tabPrivacy.className = 'flex-1 py-2 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all bg-peach-500 text-white shadow-sm';
+            tabWatermark.className = 'flex-1 py-2 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all text-gray-400 hover:text-white hover:bg-dark-700';
+            privacyPanel.classList.remove('hidden');
+            watermarkPanel.classList.add('hidden');
+        });
+
+        tabWatermark.addEventListener('click', () => {
+            tabWatermark.className = 'flex-1 py-2 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all bg-peach-500 text-white shadow-sm';
+            tabPrivacy.className = 'flex-1 py-2 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all text-gray-400 hover:text-white hover:bg-dark-700';
+            watermarkPanel.classList.remove('hidden');
+            privacyPanel.classList.add('hidden');
+        });
+
+        // エフェクト選択ボタン
+        document.querySelectorAll('.effect-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.effect-btn').forEach(b => {
+                    b.className = 'effect-btn p-3 rounded-xl border border-dark-700 bg-dark-700/50 text-gray-400 hover:bg-dark-700 hover:text-gray-200 flex flex-col items-center gap-1.5 text-xs transition-all';
+                });
+                btn.className = 'effect-btn active p-3 rounded-xl border border-peach-500 bg-peach-500/10 text-peach-400 flex flex-col items-center gap-1.5 text-xs transition-all';
+                state.activeEffect = btn.dataset.effect;
+
+                document.getElementById('mosaicControls').classList.toggle('hidden', state.activeEffect !== 'mosaic');
+                document.getElementById('blurControls').classList.toggle('hidden', state.activeEffect !== 'blur');
+                document.getElementById('fillControls').classList.toggle('hidden', state.activeEffect !== 'fill');
+            });
+        });
+
+        // スライダー連動
+        mosaicSizeInput.addEventListener('input', (e) => {
+            state.mosaicSize = parseInt(e.target.value);
+            document.getElementById('mosaicVal').innerText = `${state.mosaicSize}px`;
+        });
+
+        blurRadiusInput.addEventListener('input', (e) => {
+            state.blurRadius = parseInt(e.target.value);
+            document.getElementById('blurVal').innerText = `${state.blurRadius}px`;
+        });
+
+        fillColorBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                fillColorBtns.forEach(b => b.classList.remove('border-peach-500', 'ring-2', 'ring-peach-500/30'));
+                btn.classList.add('border-peach-500', 'ring-2', 'ring-peach-500/30');
+                state.fillColor = btn.dataset.color;
+            });
+        });
+
+        fillCustomColor.addEventListener('input', (e) => {
+            state.fillColor = e.target.value;
+        });
+
+        // ウォーターマーク設定連動
+        wmEnable.addEventListener('change', (e) => {
+            state.watermark.enabled = e.target.checked;
+            document.getElementById('wmControlsGroup').style.opacity = state.watermark.enabled ? '1' : '0.4';
+            document.getElementById('wmControlsGroup').style.pointerEvents = state.watermark.enabled ? 'auto' : 'none';
+            renderCanvas();
+        });
+
+        wmTextInput.addEventListener('input', (e) => {
+            state.watermark.text = e.target.value;
+            renderCanvas();
+        });
+
+        wmOpacityInput.addEventListener('input', (e) => {
+            state.watermark.opacity = parseInt(e.target.value) / 100;
+            document.getElementById('wmOpacityVal').innerText = `${e.target.value}%`;
+            renderCanvas();
+        });
+
+        wmSizeInput.addEventListener('input', (e) => {
+            state.watermark.size = parseInt(e.target.value);
+            document.getElementById('wmSizeVal').innerText = `${e.target.value}px`;
+            renderCanvas();
+        });
+
+        wmAngleInput.addEventListener('input', (e) => {
+            state.watermark.angle = parseInt(e.target.value);
+            document.getElementById('wmAngleVal').innerText = `${e.target.value}°`;
+            renderCanvas();
+        });
+
+        document.querySelectorAll('.wm-pos-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.wm-pos-btn').forEach(b => {
+                    b.className = 'wm-pos-btn py-2 px-3 bg-dark-700/50 border border-dark-700 text-gray-400 hover:text-gray-200 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5';
+                });
+                btn.className = 'wm-pos-btn active py-2 px-3 bg-peach-500/10 border border-peach-500 text-peach-400 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5';
+                state.watermark.position = btn.dataset.pos;
+                renderCanvas();
+            });
+        });
+
+        // キーボードショートカット
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                if (e.shiftKey) redo();
+                else undo();
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+                redo();
+            }
+        });
+
+        // --- エクスポート/ダウンロードダイアログ ---
+        const exportModal = document.getElementById('exportModal');
+        document.getElementById('btnDownload').addEventListener('click', () => {
+            exportModal.classList.remove('hidden');
+        });
+        document.getElementById('btnCloseModal').addEventListener('click', () => {
+            exportModal.classList.add('hidden');
+        });
+
+        document.getElementById('btnConfirmExport').addEventListener('click', () => {
+            const format = document.querySelector('input[name="exportFormat"]:checked').value;
+            const filename = document.getElementById('exportFilename').value.trim() || 'protected_image';
+            
+            const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+            const dataUrl = mainCanvas.toDataURL(mimeType, 0.92);
+
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = `${filename}.${format}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            exportModal.classList.add('hidden');
+        });
+    </script>
+</body>
+</html>
